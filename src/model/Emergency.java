@@ -11,13 +11,13 @@ public class Emergency {
 	private List<Fire> fires;
 	private List<Station> stations;
 	
-	private List<Truck> trucksToUpdate = new ArrayList<Truck>();
+	private List<Truck> trucksToAssign = new ArrayList<Truck>();
 	private List<Fire> firesNotHandled = new ArrayList<Fire>();
 	
-	private String endpointDBEmergency;
+	private String serverDBEmergency;
 	
-	public Emergency(String endpointEmergency) {
-		this.endpointDBEmergency = endpointEmergency;
+	public Emergency(String serverEmergency) {
+		this.serverDBEmergency = serverEmergency;
 	}
 	
 	public void run() {
@@ -28,16 +28,17 @@ public class Emergency {
 			System.out.print("<====> START OF THE LOOP <====>\n");
 			
 			// Etape 1 : récupérer les feux, les camions et les casernes de la BDD Emergency.
-			this.trucks = httpRequester.getAllTrucks(this.endpointDBEmergency);
-			this.fires = httpRequester.getAllFires(this.endpointDBEmergency);
-			this.stations = httpRequester.getAllStations(this.endpointDBEmergency);
+			this.trucks = httpRequester.getAllTrucks(this.serverDBEmergency);
+			this.fires = httpRequester.getAllFires(this.serverDBEmergency);
+			this.stations = httpRequester.getAllStations(this.serverDBEmergency);
 			
 			System.out.print("<====> TRUCKS GET <====>\n" + this.trucks + "\n");
-			System.out.print("<====> FIRES GET <====>\n" + this.fires + "\n");
 			System.out.print("<====> STATIONS GET <====>\n" + this.stations + "\n");
 			
 			// Etape 2 : on détermine les feux qui ne sont pas encore traités.
 			this.step2_computeFires();
+			
+			System.out.print("<====> FIRES GET <====>\n" + this.fires + "\n");
 			
 			// Etape 3 : on détermine les camions que l'on pourra assigner.
 			this.step3_computeTrucks();
@@ -45,10 +46,12 @@ public class Emergency {
 			// Etape 4 : on assigne finalement les camions selons les disponibilités des feux.
 			this.step4_assignTrucks();
 			
-			System.out.print("<====> TRUCKS TO UPDATE <====>\n" + this.trucksToUpdate + "\n");
+			System.out.print("<====> TRUCKS TO UPDATE <====>\n" + this.trucksToAssign + "\n\n");
+			
+			System.out.print("<====> HTTP REQUESTS <====>\n");
 			
 			// Etape 5 : mettre à jour la BDD Emergency (camions).
-			httpRequester.updateDBEmergency(this.endpointDBEmergency, this.trucksToUpdate);
+			httpRequester.updateDBEmergency(this.serverDBEmergency, this.trucksToAssign);
 			
 			System.out.print("<====> END OF THE LOOP <====>\n\n");
 			
@@ -82,10 +85,21 @@ public class Emergency {
 	
 	private void step3_computeTrucks() {
 		for(Truck truck : this.trucks) {
-			// Si le camion n'est lié à aucun feu
-			if(truck.getIdFire() == 0) {
+			Boolean hasFire = false;
+			
+			// On parcours tous les feux...
+			for(Fire fire : this.fires) {
+				// ...et si notre camion est lié à un feu que l'on a récupéré, c'est qu'il n'est pas à assigner.
+				if(truck.getIdFire() == fire.getId()) {
+					hasFire = true;
+				}
+			}
+			
+			// Si le camion n'est lié à aucun feu, on va devoir l'assigner.
+			if(!hasFire) {
 				// On ajoute ce camion à la liste de ceux qu'il faudra assigner.
-				this.trucksToUpdate.add(truck);
+				this.trucksToAssign.add(truck);
+				truck.setIdFire(0);
 			}
 		}
 	}
@@ -95,11 +109,10 @@ public class Emergency {
 		// (car ils n'ont pas pu être assignés à un feu mais retournent déjà à leur caserne).
 		List<Truck> trucksNotToUpdate = new ArrayList<Truck>();
 
-		for(Truck truck : this.trucksToUpdate) {
+		for(Truck truck : this.trucksToAssign) {
 			// On va assigner chaque camion disponible au premier feu disponible (à améliorer - TODO).
 			for(Fire fire : this.firesNotHandled) {
 				truck.setIdFire(fire.getId());
-				truck.setDestination(fire.getPosition());
 				fire.setIsHandled(true);
 				this.firesNotHandled.remove(fire);
 				break;
@@ -107,28 +120,13 @@ public class Emergency {
 			
 			// Si le camion n'a toujours pas été assigné à un feu (aucun feu disponible).
 			if(truck.getIdFire() == 0) {
-				// On va lui dire de revenir à sa caserne (s'il ne revient pas déjà).
-				Station truckStation = null;
-				for(Station station : this.stations) {
-					if(station.getId() == truck.getIdStation()) {
-						truckStation = station;
-						break;
-					}
-				}
-
-				// Si le camion revient déjà à sa caserne.
-				if(truck.getDestination().equals(truckStation.getPosition())) {
-					// On l'ajoute à la liste des camions à ne pas mettre à jour.
-					trucksNotToUpdate.add(truck);
-				} else {
-					// Sinon, sa destination devient sa caserne.
-					truck.setDestination(truckStation.getPosition());
-				}
+				// On l'ajoute à la liste des camions à ne pas mettre à jour.
+				trucksNotToUpdate.add(truck);
 			}
 		}
 		
 		for(Truck truck : trucksNotToUpdate) {
-			this.trucksToUpdate.remove(truck);
+			this.trucksToAssign.remove(truck);
 		}
 	}
 	
@@ -136,7 +134,7 @@ public class Emergency {
 		this.trucks.clear();
 		this.fires.clear();
 		this.stations.clear();
-		this.trucksToUpdate.clear();
+		this.trucksToAssign.clear();
 		this.firesNotHandled.clear();
 	}
 

@@ -1,114 +1,172 @@
 package utils;
 
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.InputStreamReader;
+import java.io.StringWriter;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 
 import model.Fire;
 import model.Station;
 import model.Truck;
 
 public final class httpRequester {
-	
-	// Variable pour pouvoir tester rapidement en générant des camions et des feux.
-	private static Boolean localTest = true;
 
-	private static String get(String endpoint) {
-		return "TODO";
-	}
+	private static String get(String serverEndpoint) {
+		String content = new String();
+		try {
+			URL url = new URL(serverEndpoint);
+			HttpURLConnection con = (HttpURLConnection) url.openConnection();
+			con.setRequestMethod("GET");
+			con.setConnectTimeout(20000);
+
+			int status = con.getResponseCode();
+			BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+			String inputLine;
 	
-	private static String post(String endpoint, String data) {
-		return "TODO";
-	}
-	
-	public static List<Truck> getAllTrucks(String endpoint) {
-		List<Truck> trucks = new ArrayList<Truck>();
+			while ((inputLine = in.readLine()) != null) {
+			    content += inputLine;
+			}
+
+			in.close();
+			con.disconnect();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 		
-		if(localTest) {
-			trucks = factory_getTrucks();
-		} else {
-			String results = get(endpoint);
-			// TODO
+		return content;
+	}
+	
+	private static void put(String serverEndpoint, String data) {
+		System.out.print("HTTP PUT : " + serverEndpoint + " | " + data + "\n");
+		try {
+			URL url = new URL(serverEndpoint);
+			HttpURLConnection con = (HttpURLConnection) url.openConnection();
+			con.setRequestMethod("PUT");
+			con.setConnectTimeout(20000);
+			con.setDoOutput(true);
+
+			DataOutputStream out = new DataOutputStream(con.getOutputStream());
+			out.writeBytes(data);
+			out.flush();
+			out.close();
+			int status = con.getResponseCode();
+			
+			// Lecture de la réponse.
+			BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+			String inputLine;
+			StringBuffer content = new StringBuffer();
+			while ((inputLine = in.readLine()) != null) {
+			    content.append(inputLine);
+			}
+			System.out.print("Request response (" + status + ") : " + content + "\n");
+
+			in.close();
+			con.disconnect();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public static List<Truck> getAllTrucks(String server) {
+		List<Truck> trucks = new ArrayList<Truck>();
+		String endpoint = "/camions/lire.php";
+		String results = get(server + endpoint);
+		JSONParser parser = new JSONParser();
+
+		try {
+			JSONObject jsonObject = (JSONObject) parser.parse(results);
+			JSONArray camions = (JSONArray) jsonObject.get("camions");
+            Iterator i = camions.iterator();
+            while (i.hasNext()) {
+                JSONObject innerObj = (JSONObject) i.next();
+                int id_camion = Integer.parseInt((String) innerObj.get("id_camion"));
+                Coord position = new Coord(Integer.parseInt((String) innerObj.get("positionX_camion")), Integer.parseInt((String) innerObj.get("positionY_camion")));
+                int id_caserne = Integer.parseInt((String) innerObj.get("id_caserne"));
+                int id_feu = Integer.parseInt((String) innerObj.get("id_feu"));
+                trucks.add(new Truck(id_camion, position, id_caserne, id_feu));
+            }
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 		
 		return trucks;
 	}
 	
-	public static List<Fire> getAllFires(String endpoint) {
+	public static List<Fire> getAllFires(String server) {
 		List<Fire> fires = new ArrayList<Fire>();
-
-		if(localTest) {
-			fires = factory_getFires();
-		} else {
-			String results = get(endpoint);
-			// TODO
+		String endpoint = "/feux/lire2.php";
+		String results = get(server + endpoint);
+		JSONParser parser = new JSONParser();
+			
+		try {
+			JSONObject jsonObject = (JSONObject) parser.parse(results);
+			JSONArray feux = (JSONArray) jsonObject.get("feux");
+            Iterator i = feux.iterator();
+            while (i.hasNext()) {
+                JSONObject innerObj = (JSONObject) i.next();
+                int id_feu = Integer.parseInt((String) innerObj.get("id_feu"));
+                Coord position = new Coord(Integer.parseInt((String) innerObj.get("positionX")), Integer.parseInt((String) innerObj.get("positionY")));
+                int intensite = Integer.parseInt((String) innerObj.get("intensite"));
+                if(intensite != 0)  {
+                	fires.add(new Fire(id_feu, position, intensite));
+                }
+            }
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 
 		return fires;
 	}
 	
-	public static List<Station> getAllStations(String endpoint) {
+	public static List<Station> getAllStations(String server) {
 		List<Station> stations = new ArrayList<Station>();
-		
-		if(localTest) {
-			stations = factory_getStations();
-		} else {
-			String results = get(endpoint);
-			// TODO
+		String endpoint = "/casernes/lire.php";
+		String results = get(server + endpoint);
+		JSONParser parser = new JSONParser();
+
+		try {
+			JSONObject jsonObject = (JSONObject) parser.parse(results);
+			JSONArray casernes = (JSONArray) jsonObject.get("casernes");
+            Iterator i = casernes.iterator();
+            while (i.hasNext()) {
+                JSONObject innerObj = (JSONObject) i.next();
+                int id_caserne = Integer.parseInt((String) innerObj.get("id_caserne"));
+                Coord position = new Coord(Integer.parseInt((String) innerObj.get("positionX_caserne")), Integer.parseInt((String) innerObj.get("positionY_caserne")));
+                stations.add(new Station(id_caserne, position));
+            }
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 
 		return stations;
 	}
 	
-	public static void updateDBEmergency(String endpoint, List<Truck> trucks) {
-		// TODO
+	public static void updateDBEmergency(String server, List<Truck> trucks) {
+		String endpoint = "/camions/modifier_id_feu.php";
+		for(Truck truck : trucks) {
+			try {
+				// On fabrique notre objet JSON qui va contenir le camion à mettre à jour.
+				JSONObject jsonObject = new JSONObject();
+				jsonObject.put("id_camion", truck.getId());
+				jsonObject.put("id_feu", truck.getIdFire());
+				
+				StringWriter output = new StringWriter();
+				jsonObject.writeJSONString(output);
+				String jsonText = output.toString();
+				
+				put(server + endpoint, jsonText);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
 	}
-	
-	/*
-	 *  Fonctions "factory" utilisées quand localTest == true.
-	 *  Permet de générer des Trucks / Fires / Stations.
-	 *  C'est pour pouvoir tester que 
-	 *  
-	 *  On obtient alors cette "map" :
-	 *  
-	 *  	- - - - - - - - - -
-	 *  	- S - - - T - - - -
-	 * 		- - - - - - - - - -
-	 *		- - - F - - - S - -
-	 *		- T - - - - - - - -
-	 *		- - - - - T - - T -
-	 *		- - S - - - - - - -
-	 *		- - - - - - - F - -
-	 *		- T - - - F - - - -
-	 *		- - - F - - - - - -
-	 *
-	 *		(0;0) -> haut gauche.
-	 */
-
-	private static List<Truck> factory_getTrucks() {
-		List<Truck> trucks = new ArrayList<Truck>();
-		trucks.add(new Truck(1, new Coord(5, 1), new Coord(1, 1), 1, 0));
-		trucks.add(new Truck(2, new Coord(1, 4), new Coord(3, 3), 1, 1));
-		trucks.add(new Truck(3, new Coord(5, 5), new Coord(7, 3), 2, 0));
-		trucks.add(new Truck(4, new Coord(8, 5), new Coord(7, 7), 2, 2));
-		trucks.add(new Truck(5, new Coord(1, 8), new Coord(2, 6), 3, 0));
-		return trucks;
-	}
-	
-	private static List<Fire> factory_getFires() {
-		List<Fire> fires = new ArrayList<Fire>();
-		fires.add(new Fire(1, new Coord(3, 3), (int) (Math.random() * 10 + 1)));
-		fires.add(new Fire(2, new Coord(7, 7), (int) (Math.random() * 10 + 1)));
-		fires.add(new Fire(3, new Coord(5, 8), (int) (Math.random() * 10 + 1)));
-		fires.add(new Fire(4, new Coord(3, 9), (int) (Math.random() * 10 + 1)));
-		return fires;
-	}
-	
-	private static List<Station> factory_getStations() {
-		List<Station> stations = new ArrayList<Station>();
-		stations.add(new Station(1, new Coord(1, 1)));
-		stations.add(new Station(2, new Coord(7, 3)));
-		stations.add(new Station(3, new Coord(2, 6)));
-		return stations;
-	}
-	
 }
