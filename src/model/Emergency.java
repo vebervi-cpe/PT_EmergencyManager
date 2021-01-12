@@ -22,8 +22,8 @@ public class Emergency {
 	
 	public void run() {
 		while(true) {
-			// Etape 0 : pause de 5 secondes.
-			this.step0_wait(5);
+			// Etape 0 : pause de 10 secondes.
+			this.step0_wait(10);
 			
 			System.out.print("<====> START OF THE LOOP <====>\n");
 			
