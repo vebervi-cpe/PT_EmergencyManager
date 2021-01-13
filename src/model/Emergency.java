@@ -110,7 +110,7 @@ public class Emergency {
 		List<Truck> trucksNotToUpdate = new ArrayList<Truck>();
 
 		for(Truck truck : this.trucksToAssign) {
-			// On va assigner chaque camion disponible au premier feu disponible (à améliorer - TODO).
+			// On va assigner chaque camion disponible au premier feu disponible (à améliorer).
 			for(Fire fire : this.firesNotHandled) {
 				truck.setIdFire(fire.getId());
 				fire.setIsHandled(true);
