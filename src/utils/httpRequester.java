@@ -21,6 +21,7 @@ import model.Truck;
 public final class httpRequester {
 
 	private static String get(String serverEndpoint) {
+		System.out.print("HTTP GET : " + serverEndpoint + "\n");
 		String content = new String();
 		try {
 			URL url = new URL(serverEndpoint);
@@ -114,7 +115,7 @@ public final class httpRequester {
             while (i.hasNext()) {
                 JSONObject innerObj = (JSONObject) i.next();
                 int id_feu = Integer.parseInt((String) innerObj.get("id_feu"));
-                Coord position = new Coord(Float.parseFloat((String) innerObj.get("positionX")), Float.parseFloat((String) innerObj.get("positionY")));
+                Coord position = new Coord(Float.parseFloat(((String) innerObj.get("positionX")).replace(',' ,  '.')), Float.parseFloat(((String) innerObj.get("positionY")).replace(',' ,  '.')));
                 int intensite = Integer.parseInt((String) innerObj.get("intensite"));
                 if(intensite != 0)  {
                 	fires.add(new Fire(id_feu, position, intensite));
